@@ -4,15 +4,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { homedir } from "node:os";
-import { db, getAllKnownIssues, getRecentWork, getConfigValue, setConfigValue } from "../db/index.js";
+import { db, getConfigValue, setConfigValue } from "../db/index.js";
 import { writeClaudeHooks, writeGeminiHooks, writeOpenCodeHooks } from "../hooks/index.js";
-import type { UUID } from "../types/index.js";
+import type { UUID, ToolName } from "../types/index.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ToolName = "claude" | "codex" | "gemini" | "opencode";
-
-const KNOWN_TOOLS: ToolName[] = ["claude", "codex", "gemini", "opencode"];
+const KNOWN_TOOLS: ToolName[] = ["claude-code", "codex", "gemini", "opencode"];
 
 const PATH_COMMENT = "# llm-memory";
 const PATH_LINE = 'export PATH="$HOME/.llm-memory/bin:$PATH"';
@@ -275,7 +273,7 @@ async function runSetup(): Promise<void> {
 
   for (const tool of selected) {
     // Write hook configs
-    if (tool === "claude") {
+    if (tool === "claude-code") {
       writeClaudeHooks(path.join(homedir(), ".claude"));
     } else if (tool === "gemini") {
       writeGeminiHooks(path.join(homedir(), ".gemini"));

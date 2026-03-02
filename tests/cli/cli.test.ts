@@ -16,14 +16,14 @@ import {
 
 describe("detectInstalledTools", () => {
   it("returns only tools whose executables exist in PATH dirs", () => {
-    // Provide a mock PATH dir where only 'claude' and 'gemini' exist.
+    // Provide a mock PATH dir where only 'claude-code' and 'gemini' exist.
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "detect-"));
-    fs.writeFileSync(path.join(tmpDir, "claude"), "", { mode: 0o755 });
+    fs.writeFileSync(path.join(tmpDir, "claude-code"), "", { mode: 0o755 });
     fs.writeFileSync(path.join(tmpDir, "gemini"), "", { mode: 0o755 });
     // 'codex' and 'opencode' are absent.
 
     const found = detectInstalledTools([tmpDir]);
-    expect(found).toContain("claude");
+    expect(found).toContain("claude-code");
     expect(found).toContain("gemini");
     expect(found).not.toContain("codex");
     expect(found).not.toContain("opencode");
@@ -41,11 +41,11 @@ describe("detectInstalledTools", () => {
   it("searches multiple PATH dirs and deduplicates", () => {
     const dir1 = fs.mkdtempSync(path.join(os.tmpdir(), "detect-d1-"));
     const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), "detect-d2-"));
-    fs.writeFileSync(path.join(dir1, "claude"), "", { mode: 0o755 });
-    fs.writeFileSync(path.join(dir2, "claude"), "", { mode: 0o755 }); // duplicate
+    fs.writeFileSync(path.join(dir1, "claude-code"), "", { mode: 0o755 });
+    fs.writeFileSync(path.join(dir2, "claude-code"), "", { mode: 0o755 }); // duplicate
 
     const found = detectInstalledTools([dir1, dir2]);
-    const claudeCount = found.filter((t) => t === "claude").length;
+    const claudeCount = found.filter((t) => t === "claude-code").length;
     expect(claudeCount).toBe(1);
 
     fs.rmSync(dir1, { recursive: true });
@@ -165,7 +165,7 @@ describe("forgetProject — soft delete", () => {
       pid
     );
     createKnownIssue({ project_id: pid, description: "bug A" });
-    const session = createSession({ project_id: pid, tool: "claude" });
+    const session = createSession({ project_id: pid, tool: "claude-code" });
     addRecentWork({
       project_id: pid,
       session_id: session.id,
@@ -214,7 +214,7 @@ describe("forgetProject — hard delete", () => {
     );
     createKnownIssue({ project_id: pid, description: "bug B" });
 
-    const session = createSession({ project_id: pid, tool: "claude" });
+    const session = createSession({ project_id: pid, tool: "claude-code" });
     const sid = session.id;
 
     // Insert a digest
@@ -315,7 +315,7 @@ describe("getAllProjects", () => {
     expect(entry!.last_active_at).toBeNull();
 
     // Add a session
-    createSession({ project_id: pid, tool: "claude" });
+    createSession({ project_id: pid, tool: "claude-code" });
     const after = getAllProjects();
     const entry2 = after.find((p) => p.id === pid);
     expect(entry2!.session_count).toBe(1);
