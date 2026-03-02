@@ -1,76 +1,87 @@
 // Events — ExtractedEvent and all payload types as a discriminated union.
 
 import type { UUID, UnixMs } from "./core.js";
+import type { PatternType } from "./messages.js";
 
 export type EventSource = "hook" | "mcp";
 
 // ─── Payload types (one interface per event type) ─────────────────────────────
 
-export interface FileModifiedPayload {
-  type: "file_modified";
+export interface FilePayload {
+  type: "file_created" | "file_modified";
   path: string;
-  changeType: "created" | "modified" | "deleted" | "renamed";
-  previousPath?: string;  // only for renamed
+  operation: string;
+  diffSummary: string | null;
 }
 
 export interface CommandPayload {
   type: "command_run";
   command: string;
   exitCode: number;
-  durationMs: number;
-  cwd: string;
+  success: boolean;
+  durationMs?: number;
+  cwd?: string;
+}
+
+export interface DependencyPayload {
+  type: "dependency_added";
+  manager: string;
+  package: string;
+  version: string | null;
+}
+
+export interface CommitPayload {
+  type: "commit";
+  message: string;
+  hash: string | null;
 }
 
 export interface ErrorPayload {
   type: "error";
   message: string;
-  stackTrace?: string;
-  errorType?: string;
+  command: string | null;
+  exitCode: number | null;
 }
 
 export interface DecisionPayload {
   type: "decision";
-  summary: string;
-  rationale?: string;
-  alternatives?: string[];
-}
-
-export interface GoalPayload {
-  type: "goal_set";
-  goal: string;
-  refinedFrom?: string;  // previous goal if this is a shift
-}
-
-export interface FactPayload {
-  type: "fact";
   content: string;
-  confidence: number;  // 0–1
+  confidence: number;
+  triggeredByPattern: PatternType;
 }
 
-export interface PreferencePayload {
-  type: "preference";
-  key: string;
-  value: string;
-}
-
-export interface ToolCallPayload {
-  type: "tool_call";
-  toolName: string;
-  input: Record<string, unknown>;
+export interface BuildAttemptPayload {
+  type: "build_attempt";
   success: boolean;
+  durationMs: number | null;
+  errorSummary: string | null;
+}
+
+export interface TestRunPayload {
+  type: "test_run";
+  passed: number;
+  failed: number;
+  durationMs: number | null;
+}
+
+export interface ConfigModifiedPayload {
+  type: "config_modified";
+  path: string;
+  key: string | null;
 }
 
 // ─── Discriminated union ──────────────────────────────────────────────────────
 
 export type EventPayload =
-  | FileModifiedPayload
+  | FilePayload
   | CommandPayload
+  | DependencyPayload
+  | CommitPayload
   | ErrorPayload
   | DecisionPayload
-  | GoalPayload
-  | FactPayload
-  | PreferencePayload
-  | ToolCallPayload;
+  | BuildAttemptPayload
+  | TestRunPayload
+  | ConfigModifiedPayload;
 
 export type EventType = EventPayload["type"];
 

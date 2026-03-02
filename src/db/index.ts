@@ -12,6 +12,7 @@ export {
 } from "./projects.js";
 
 export {
+  ensureSession,
   createSession,
   getSessionById,
   getRecentSessionsByProject,
@@ -20,6 +21,7 @@ export {
   closeSession,
   updateSessionGoalAndKeywords,
   updateSessionEmbedding,
+  deleteSession,
   sweepOrphanedSessions,
 } from "./sessions.js";
 

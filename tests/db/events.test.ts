@@ -6,7 +6,7 @@ import {
   insertEvent,
 } from "../../src/db/index.js";
 import { clearDb, seedProject, seedSession } from "./helpers.js";
-import type { DecisionPayload, ErrorPayload, FileModifiedPayload } from "../../src/types/index.js";
+import type { DecisionPayload, ErrorPayload, FilePayload } from "../../src/types/index.js";
 
 beforeEach(clearDb);
 
@@ -17,8 +17,9 @@ describe("insertEvent", () => {
 
     const payload: DecisionPayload = {
       type: "decision",
-      summary: "Use SQLite over Postgres",
-      rationale: "Simpler deployment",
+      content: "Use SQLite over Postgres",
+      confidence: 0.9,
+      triggeredByPattern: "iteration",
     };
 
     const event = insertEvent({
@@ -44,8 +45,8 @@ describe("insertEvent", () => {
 
     const event = insertEvent({
       session_id: session.id,
-      type: "fact",
-      payload: { type: "fact", content: "Node.js is used", confidence: 0.9 },
+      type: "commit",
+      payload: { type: "commit", message: "initial commit", hash: null },
       source: "mcp",
     });
 
@@ -58,19 +59,23 @@ describe("batchInsertEvents", () => {
     const project = seedProject();
     const session = seedSession(project.id);
 
-    const filePayload: FileModifiedPayload = {
+    const filePayload: FilePayload = {
       type: "file_modified",
       path: "/src/index.ts",
-      changeType: "modified",
+      operation: "edit",
+      diffSummary: null,
     };
     const errorPayload: ErrorPayload = {
       type: "error",
       message: "Cannot find module",
-      errorType: "ModuleNotFoundError",
+      command: "tsc",
+      exitCode: 1,
     };
     const decisionPayload: DecisionPayload = {
       type: "decision",
-      summary: "Switched to ESM",
+      content: "Switched to ESM",
+      confidence: 0.8,
+      triggeredByPattern: "iteration",
     };
 
     const inserted = batchInsertEvents([
@@ -85,7 +90,6 @@ describe("batchInsertEvents", () => {
     expect(inserted[1].weight).toBe(0.9);
     expect(inserted[2].type).toBe("decision");
 
-    // All have distinct IDs
     const ids = inserted.map((e) => e.id);
     expect(new Set(ids).size).toBe(3);
   });
@@ -94,26 +98,24 @@ describe("batchInsertEvents", () => {
     const project = seedProject();
     const session = seedSession(project.id);
 
-    // FK violation: non-existent session_id in the second event
     const fakeSessionId = "00000000-0000-0000-0000-000000000000" as any;
     expect(() =>
       batchInsertEvents([
         {
           session_id: session.id,
-          type: "fact",
-          payload: { type: "fact", content: "ok", confidence: 1 },
+          type: "commit",
+          payload: { type: "commit", message: "ok", hash: null },
           source: "mcp",
         },
         {
           session_id: fakeSessionId,
-          type: "fact",
-          payload: { type: "fact", content: "bad", confidence: 1 },
+          type: "commit",
+          payload: { type: "commit", message: "bad", hash: null },
           source: "mcp",
         },
       ])
     ).toThrow();
 
-    // The first valid event must also be rolled back
     expect(getEventsBySession(session.id)).toHaveLength(0);
   });
 });
@@ -124,14 +126,13 @@ describe("getEventsBySession", () => {
     const session = seedSession(project.id);
 
     batchInsertEvents([
-      { session_id: session.id, type: "goal_set", payload: { type: "goal_set", goal: "first" }, source: "hook" },
-      { session_id: session.id, type: "goal_set", payload: { type: "goal_set", goal: "second" }, source: "hook" },
-      { session_id: session.id, type: "goal_set", payload: { type: "goal_set", goal: "third" }, source: "hook" },
+      { session_id: session.id, type: "commit", payload: { type: "commit", message: "first", hash: null }, source: "hook" },
+      { session_id: session.id, type: "commit", payload: { type: "commit", message: "second", hash: null }, source: "hook" },
+      { session_id: session.id, type: "commit", payload: { type: "commit", message: "third", hash: null }, source: "hook" },
     ]);
 
     const events = getEventsBySession(session.id);
     expect(events).toHaveLength(3);
-    // timestamps are non-decreasing
     for (let i = 1; i < events.length; i++) {
       expect(events[i].timestamp).toBeGreaterThanOrEqual(events[i - 1].timestamp);
     }
@@ -150,9 +151,9 @@ describe("getEventsBySessionAndType", () => {
     const session = seedSession(project.id);
 
     batchInsertEvents([
-      { session_id: session.id, type: "decision", payload: { type: "decision", summary: "use SQLite" }, source: "hook" },
-      { session_id: session.id, type: "error", payload: { type: "error", message: "oops" }, source: "hook" },
-      { session_id: session.id, type: "decision", payload: { type: "decision", summary: "use ESM" }, source: "hook" },
+      { session_id: session.id, type: "decision", payload: { type: "decision", content: "use SQLite", confidence: 0.9, triggeredByPattern: "iteration" }, source: "hook" },
+      { session_id: session.id, type: "error", payload: { type: "error", message: "oops", command: null, exitCode: null }, source: "hook" },
+      { session_id: session.id, type: "decision", payload: { type: "decision", content: "use ESM", confidence: 0.8, triggeredByPattern: "confirmation" }, source: "hook" },
     ]);
 
     const decisions = getEventsBySessionAndType(session.id, "decision");

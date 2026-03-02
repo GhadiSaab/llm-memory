@@ -81,6 +81,10 @@ const stmtUpdateEmbedding = db.prepare<[Buffer, string]>(`
   UPDATE sessions SET embedding = ? WHERE id = ?
 `);
 
+const stmtDelete = db.prepare<[string]>(`
+  DELETE FROM sessions WHERE id = ?
+`);
+
 const stmtFindOrphans = db.prepare<[number], SessionRow>(`
   SELECT * FROM sessions WHERE outcome IS NULL AND last_seen_at < ?
 `);
@@ -90,6 +94,39 @@ const stmtMarkCrashed = db.prepare(`
 `);
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Ensure a session row exists with the given ID.
+ * If it already exists, returns it unchanged.
+ * If not, creates it — used when end_session is called without a prior session_start.
+ */
+export function ensureSession(fields: {
+  id: string;
+  project_id: UUID;
+  tool: ToolName;
+}): Session {
+  const existing = stmtFindById.get(fields.id);
+  if (existing) return rowToSession(existing);
+
+  const now = Date.now() as UnixMs;
+  const row = {
+    id: fields.id,
+    project_id: fields.project_id,
+    tool: fields.tool,
+    started_at: now,
+    ended_at: null,
+    last_seen_at: now,
+    outcome: null,
+    exit_code: null,
+    goal: null,
+    keywords: "[]",
+    embedding: null,
+    message_count: 0,
+    duration_seconds: null,
+  };
+  stmtInsert.run(row);
+  return rowToSession(row as SessionRow);
+}
 
 export function createSession(fields: {
   project_id: UUID;
@@ -155,6 +192,10 @@ export function updateSessionGoalAndKeywords(
 
 export function updateSessionEmbedding(sessionId: UUID, embedding: Float32Array): void {
   stmtUpdateEmbedding.run(Buffer.from(embedding.buffer), sessionId);
+}
+
+export function deleteSession(sessionId: UUID): void {
+  stmtDelete.run(sessionId);
 }
 
 // ─── Orphan sweep ─────────────────────────────────────────────────────────────

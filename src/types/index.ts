@@ -4,6 +4,9 @@ export type { UUID, UnixMs, ToolName, SessionOutcome, IdentityMethod, Project, S
 
 export type {
   MessageRole,
+  MessageType,
+  PatternType,
+  KeywordScore,
   Message,
   StructuralFeatures,
   WeightedMessage,
@@ -14,14 +17,15 @@ export type {
   EventSource,
   EventType,
   EventPayload,
-  FileModifiedPayload,
+  FilePayload,
   CommandPayload,
+  DependencyPayload,
+  CommitPayload,
   ErrorPayload,
   DecisionPayload,
-  GoalPayload,
-  FactPayload,
-  PreferencePayload,
-  ToolCallPayload,
+  BuildAttemptPayload,
+  TestRunPayload,
+  ConfigModifiedPayload,
   ExtractedEvent,
 } from "./events.js";
 

@@ -4,6 +4,16 @@ import type { UUID, UnixMs } from "./core.js";
 
 export type MessageRole = "user" | "assistant";
 
+export type MessageType = "decision" | "goal" | "error" | "conclusion" | "noise";
+
+export type PatternType = "confirmation" | "error_retry" | "iteration" | "struggle";
+
+export interface KeywordScore {
+  category: MessageType;
+  confidence: number;       // 0.0 to 1.0
+  matchedSignals: string[]; // which phrases matched, useful for debugging
+}
+
 // ─── Raw message (opt-in storage) ────────────────────────────────────────────
 
 export interface Message {
@@ -24,28 +34,29 @@ export interface StructuralFeatures {
   hasFilePath: boolean;
   hasUrl: boolean;
   hasError: boolean;
-  hasDecisionPhrase: boolean;  // "I decided", "let's go with", etc.
-  hasGoalPhrase: boolean;      // "the goal is", "I need to", etc.
+  hasDecisionPhrase: boolean;
+  hasGoalPhrase: boolean;
   questionCount: number;
-  imperativeCount: number;     // sentences starting with a verb
+  imperativeCount: number;
   sentenceCount: number;
   startsWithVerb: boolean;
   isShortConfirmation: boolean;
   positionalWeight: number;    // 0–1 based on position in conversation
 }
 
-/** A message annotated with its computed importance score. */
+/** A message annotated with its computed importance score and classification. */
 export interface WeightedMessage {
   message: Message;
-  tfidfScore: number;
-  signalBoost: number;        // additive bonus from StructuralFeatures
-  compositeScore: number;     // final 0–1 importance
+  weight: number;              // final 0–1 importance score
+  type: MessageType;           // dominant category from keyword scoring
   features: StructuralFeatures;
 }
 
 /** A pattern spanning multiple messages — detected at conversation level. */
 export interface ConversationPattern {
-  type: "repeated_error" | "goal_shift" | "back_and_forth" | "long_silence";
-  messageIds: UUID[];
-  description: string;
+  type: PatternType;
+  messageIndexes: number[];
+  extractedDecision: string | null;
+  confidence: number;
+  summary: string;
 }

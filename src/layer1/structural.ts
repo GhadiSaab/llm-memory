@@ -2,6 +2,7 @@
 // Runs on every message in a conversation; must stay fast.
 
 import type { Message, StructuralFeatures } from "../types/index.js";
+import { analyzePosition } from "./positional.js";
 
 // ─── Compiled regexes (module-level — compiled once) ─────────────────────────
 
@@ -47,16 +48,7 @@ export function extractStructuralFeatures(
       role === "user" &&
       content.trim().length < 30 &&
       RE_SHORT_CONFIRMATION.test(content.trim()),
-    positionalWeight: computePositionalWeight(index, totalMessages),
+    positionalWeight: analyzePosition(index, totalMessages, message.role),
   };
 }
 
-// ─── Positional weight ────────────────────────────────────────────────────────
-
-function computePositionalWeight(index: number, total: number): number {
-  if (total === 0) return 1.0;
-  if (index === 0) return 1.0;
-  if (index >= total - 3) return 0.8;
-  if (index < total * 0.1) return 0.7;
-  return 0.4;
-}

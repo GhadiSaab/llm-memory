@@ -10,11 +10,13 @@ import type { ExtractedEvent } from "./events.js";
 export interface Layer1Output {
   session_id: UUID;
   goal: string | null;
-  keywords: string[];
-  topMessages: WeightedMessage[];      // scored, sorted by compositeScore desc
+  weightedMessages: WeightedMessage[];
   events: ExtractedEvent[];
+  decisions: string[];
+  errors: string[];
+  keywords: string[];
   patterns: ConversationPattern[];
-  computedAt: UnixMs;
+  tokenCount: number;
 }
 
 // ─── Layer 2 — Digest (stored, injected into context) ─────────────────────────
@@ -48,14 +50,16 @@ export interface RecentWorkEntry {
   id: UUID;
   project_id: UUID;
   session_id: UUID;
-  summary: string;   // one-line description
+  summary: string;
   date: UnixMs;
 }
 
 /** Assembled project memory — aggregated from digests and events. */
 export interface ProjectMemory {
   project_id: UUID;
-  memory_doc: string;         // rendered markdown stored in projects.memory_doc
+  memory_doc: string;
+  architecture: string;
+  conventions: string[];
   known_issues: KnownIssue[];
   recent_work: RecentWorkEntry[];
   updated_at: UnixMs;

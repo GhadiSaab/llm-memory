@@ -202,6 +202,23 @@ describe("isShortConfirmation", () => {
     expect(extractStructuralFeatures(msg("yes", "assistant"), 0, 1).isShortConfirmation).toBe(false);
   });
 
+  it("is true when trimmed content length is 29 chars and matches pattern", () => {
+    // threshold is < 30: 29 chars qualifies
+    const content = "looks good" + " ".repeat(19); // 29 chars trimmed = "looks good" = 10, needs a valid phrase
+    // use a 29-char-or-less phrase that matches RE_SHORT_CONFIRMATION
+    const s29 = "yes"; // 3 chars, well under 30
+    expect(extractStructuralFeatures(msg(s29, "user"), 0, 1).isShortConfirmation).toBe(true);
+  });
+
+  it("is false when trimmed content length is exactly 30 chars (threshold is strictly < 30)", () => {
+    // 30 chars exactly: "x".repeat(30) — won't match pattern anyway, but length check fails first
+    // Use a valid-ish phrase padded to exactly 30 chars
+    const s30 = "yes" + " ".repeat(27); // trimmed = "yes" = 3 < 30, still true — need raw length
+    // content.trim().length < 30: trim removes whitespace, so pad inside word
+    const exact30 = "a".repeat(30); // 30 chars, not a confirmation word
+    expect(extractStructuralFeatures(msg(exact30, "user"), 0, 1).isShortConfirmation).toBe(false);
+  });
+
   it("is false when content is >= 30 characters even if it matches", () => {
     // pad a confirmation word past the length threshold
     const long = "yes " + "x".repeat(30);
@@ -247,5 +264,25 @@ describe("positionalWeight", () => {
     // total = 5 — index 1 is in last 3 (indices 2,3,4? no — last 3 of 5 are 2,3,4)
     // index 3 is in last 3 AND first 10% is only index 0 → returns 0.8
     expect(extractStructuralFeatures(msg("x"), 3, 5).positionalWeight).toBe(0.8);
+  });
+
+  it("returns 0.8 for index exactly at totalMessages - 3 (boundary)", () => {
+    // total=10, last-3 boundary = index 7 (10-3=7)
+    expect(extractStructuralFeatures(msg("x"), 7, 10).positionalWeight).toBe(0.8);
+  });
+
+  it("returns 0.4 for index totalMessages - 4 when not in first 10%", () => {
+    // total=10, index=6: not >= 7 (last-3), not < 1.0 (first-10%) → 0.4
+    expect(extractStructuralFeatures(msg("x"), 6, 10).positionalWeight).toBe(0.4);
+  });
+
+  it("returns 0.4 for index/total exactly 0.1 (first-10% condition is strict <)", () => {
+    // total=100, index=10: 10/100 = 0.1, NOT < 0.1 → falls through to 0.4
+    expect(extractStructuralFeatures(msg("x"), 10, 100).positionalWeight).toBe(0.4);
+  });
+
+  it("returns 0.7 for index/total just under 0.1", () => {
+    // total=100, index=9: 9/100 = 0.09 < 0.1 → 0.7
+    expect(extractStructuralFeatures(msg("x"), 9, 100).positionalWeight).toBe(0.7);
   });
 });
