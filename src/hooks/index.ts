@@ -36,13 +36,18 @@ function writeJson(filePath: string, data: unknown): void {
  * Merges llm-memory hooks into .claude/settings.json.
  * @param claudeDir  path to the .claude/ directory (e.g. ~/.claude or <project>/.claude)
  */
-export function writeClaudeHooks(claudeDir: string): void {
+export function writeClaudeHooks(claudeDir: string, sessionStartBin: string): void {
   const filePath = join(claudeDir, "settings.json");
   const existing = readJson(filePath);
-  const hookConfig = buildClaudeHookConfig();
+  const hookConfig = buildClaudeHookConfig(sessionStartBin);
 
   // Deep-merge: preserve existing hooks sections, add ours if absent
   const existingHooks = (existing["hooks"] ?? {}) as Record<string, unknown>;
+
+  const mergedStart = mergeClaudeHookArray(
+    existingHooks["SessionStart"],
+    hookConfig.hooks.SessionStart
+  );
 
   const mergedPost = mergeClaudeHookArray(
     existingHooks["PostToolUse"],
@@ -53,6 +58,7 @@ export function writeClaudeHooks(claudeDir: string): void {
     ...existing,
     hooks: {
       ...existingHooks,
+      SessionStart: mergedStart,
       PostToolUse: mergedPost,
     },
   };
@@ -63,7 +69,7 @@ export function writeClaudeHooks(claudeDir: string): void {
 /** Merge our hook entry into the existing array, deduplicating by command string. */
 function mergeClaudeHookArray(
   existing: unknown,
-  additions: Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }>
+  additions: Array<{ matcher?: string; hooks: Array<{ type: string; command: string }> }>
 ): unknown[] {
   const arr = Array.isArray(existing) ? (existing as unknown[]) : [];
 

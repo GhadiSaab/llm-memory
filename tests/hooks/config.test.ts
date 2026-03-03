@@ -90,7 +90,7 @@ describe("writeClaudeHooks", () => {
   it("creates settings.json when it does not exist", () => {
     const claudeDir = join(tmpDir, ".claude");
     mkdirSync(claudeDir);
-    writeClaudeHooks(claudeDir);
+    writeClaudeHooks(claudeDir, "/tmp/session-start");
 
     const written = JSON.parse(readFileSync(join(claudeDir, "settings.json"), "utf8"));
     expect(written).toHaveProperty("hooks.PostToolUse");
@@ -102,7 +102,7 @@ describe("writeClaudeHooks", () => {
     const existing = { theme: "dark", model: "claude-opus", customKey: 42 };
     writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(existing));
 
-    writeClaudeHooks(claudeDir);
+    writeClaudeHooks(claudeDir, "/tmp/session-start");
 
     const written = JSON.parse(readFileSync(join(claudeDir, "settings.json"), "utf8"));
     expect(written.theme).toBe("dark");
@@ -113,8 +113,8 @@ describe("writeClaudeHooks", () => {
   it("is idempotent — running twice does not duplicate hooks", () => {
     const claudeDir = join(tmpDir, ".claude");
     mkdirSync(claudeDir);
-    writeClaudeHooks(claudeDir);
-    writeClaudeHooks(claudeDir);
+    writeClaudeHooks(claudeDir, "/tmp/session-start");
+    writeClaudeHooks(claudeDir, "/tmp/session-start");
 
     const written = JSON.parse(readFileSync(join(claudeDir, "settings.json"), "utf8"));
     expect(written.hooks.PostToolUse).toHaveLength(1);

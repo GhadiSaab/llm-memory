@@ -299,16 +299,18 @@ async function runSetup(): Promise<void> {
   const scriptDir = path.dirname(new URL(import.meta.url).pathname);
   const wrapperPath = path.resolve(scriptDir, "../wrapper/index.js");
   const receiverPath = path.resolve(scriptDir, "../hooks/receiver.js");
+  const sessionStartPath = path.resolve(scriptDir, "../hooks/session-start.js");
 
-  // Always create hook-receiver symlink (needed by all tool hooks)
+  // Always create hook-receiver + session-start symlinks
   createWrapperSymlink("hook-receiver", receiverPath, llmBin);
+  createWrapperSymlink("session-start", sessionStartPath, llmBin);
 
   const results: string[] = [];
 
   for (const tool of selected) {
     // Write hook configs + register MCP server
     if (tool === "claude-code") {
-      writeClaudeHooks(path.join(homedir(), ".claude"));
+      writeClaudeHooks(path.join(homedir(), ".claude"), path.join(llmBin, "session-start"));
       registerClaudeMcp(receiverPath);
     } else if (tool === "gemini") {
       writeGeminiHooks(path.join(homedir(), ".gemini"));
