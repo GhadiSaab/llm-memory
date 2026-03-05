@@ -78,9 +78,9 @@ describe("mergeIntoProjectMemory — recent_work", () => {
     expect(result.recent_work.find((e) => e.summary === "Work 0")).toBeUndefined();
   });
 
-  it("uses 'No goal detected' when digest.goal is null", () => {
+  it("skips recent_work entry when digest.goal is null", () => {
     const result = mergeIntoProjectMemory(makeMemory(), makeDigest({ goal: null }), "sid-1");
-    expect(result.recent_work[0].summary).toBe("No goal detected");
+    expect(result.recent_work).toHaveLength(0);
   });
 
   it("new entry has a date (timestamp > 0)", () => {

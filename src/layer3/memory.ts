@@ -23,14 +23,16 @@ export function mergeIntoProjectMemory(
   const now = Date.now() as any;
 
   // ── recent_work: prepend new entry, keep last 10 ──────────────────────────
-  const newEntry: RecentWorkEntry = {
+  // Skip sessions with no meaningful goal — they pollute the memory doc
+  const hasGoal = digest.goal && digest.goal.trim().length > 0 && digest.goal !== "No goal detected";
+  const newEntry: RecentWorkEntry | null = hasGoal ? {
     id: randomUUID() as any,
     project_id: existing.project_id,
     session_id: sessionId as any,
-    summary: digest.goal ?? "No goal detected",
+    summary: digest.goal!,
     date: now,
-  };
-  const recentWork = [newEntry, ...existing.recent_work].slice(0, 10);
+  } : null;
+  const recentWork = (newEntry ? [newEntry, ...existing.recent_work] : existing.recent_work).slice(0, 10);
 
   // ── known_issues: add new, resolve matching on completion ─────────────────
   const knownIssues: KnownIssue[] = existing.known_issues.map((issue) => {
