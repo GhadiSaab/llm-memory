@@ -2,9 +2,11 @@
 // Tested directly; index.ts wires them into the MCP server.
 
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import type { Message, UUID } from "../types/index.js";
 import {
   getProjectById,
+  getProjectByPathHash,
   getRecentSessionsByProject,
   ensureSession,
   closeSession,
@@ -40,6 +42,11 @@ export function getEventBuffer(sessionId: string): ExtractedEvent[] {
 export function clearBuffers(): void {
   messageBuffers.clear();
   eventBuffers.clear();
+}
+
+export function seedBuffers(sessionId: string, messages: Message[], events: ExtractedEvent[]): void {
+  messageBuffers.set(sessionId, messages);
+  eventBuffers.set(sessionId, events);
 }
 
 function pushMessage(sessionId: string, msg: Message): void {
@@ -166,7 +173,15 @@ export async function handleGetProjectMemory(input: unknown) {
   const parsed = GetProjectMemorySchema.safeParse(input);
   if (!parsed.success) return err(parsed.error.message, "INVALID_INPUT");
 
-  const project = getProjectById(parsed.data.project_id as UUID);
+  const { project_id } = parsed.data;
+
+  // Try UUID lookup first, then fall back to path-hash lookup.
+  // Claude Code passes the raw working directory path as project_id.
+  let project = getProjectById(project_id as UUID);
+  if (!project) {
+    const pathHash = createHash("sha256").update(project_id).digest("hex");
+    project = getProjectByPathHash(pathHash);
+  }
   if (!project) return err("Project not found", "NOT_FOUND");
 
   return { memory_doc: project.memory_doc };

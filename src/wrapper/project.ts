@@ -45,10 +45,11 @@ export async function resolveProject(cwd: string): Promise<ResolvedProject> {
   const name = basename(resolvedPath);
   const pathHash = createHash("sha256").update(resolvedPath).digest("hex");
 
-  // 4. Look up existing project (by remote first, then path hash)
+  // 4. Look up existing project — path hash takes priority over git remote
+  //    to avoid collision when two different paths share the same remote.
   const existing =
-    (gitRemote ? getProjectByGitRemote(gitRemote) : null) ??
-    getProjectByPathHash(pathHash);
+    getProjectByPathHash(pathHash) ??
+    (gitRemote ? getProjectByGitRemote(gitRemote) : null);
 
   if (existing) {
     return {
