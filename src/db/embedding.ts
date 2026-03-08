@@ -41,7 +41,7 @@ const stmtGetRowid = db.prepare<[string], { rowid: number }>(
 );
 
 const stmtInsertEmbedding = db.prepare(
-  "INSERT INTO session_embeddings(rowid, embedding) VALUES (?, ?)"
+  "INSERT OR REPLACE INTO session_embeddings(rowid, embedding) VALUES (?, ?)"
 );
 
 /**
