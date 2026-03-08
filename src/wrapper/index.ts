@@ -67,11 +67,13 @@ async function signalSessionEnd(
   if ((tool as string) === "codex") {
     const codexData = readCodexSession(cwd, sessionStartMs);
     if (codexData) {
+      // Restamp messages with the wrapper's sessionId — Codex embeds its own thread UUID
+      const stampedMessages = codexData.messages.map(m => ({ ...m, session_id: sessionId as UUID }));
       const extractedEvents = codexData.events
         .map(e => classifyToolEvent(e.tool, e.args, e.result, e.success))
         .filter((e): e is NonNullable<typeof e> => e !== null)
         .map(e => ({ ...e, session_id: sessionId as UUID }));
-      seedBuffers(sessionId, codexData.messages, extractedEvents);
+      seedBuffers(sessionId, stampedMessages, extractedEvents);
     }
   }
 
