@@ -12,7 +12,7 @@ import type { UUID, ToolName } from "../types/index.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-const KNOWN_TOOLS: ToolName[] = ["claude-code", "codex", "gemini", "opencode"];
+const KNOWN_TOOLS: ToolName[] = ["claude-code", "codex", "gemini", "opencode", "antigravity"];
 
 /** Maps ToolName (internal ID) to the actual binary name on disk. */
 const TOOL_BINARY: Record<ToolName, string> = {
@@ -20,6 +20,7 @@ const TOOL_BINARY: Record<ToolName, string> = {
   "codex": "codex",
   "gemini": "gemini",
   "opencode": "opencode",
+  "antigravity": "antigravity",
 };
 
 const PATH_COMMENT = "# llm-memory";
@@ -154,6 +155,41 @@ function registerOpenCodeMcp(receiverPath: string, openCodeDir: string): void {
   };
 
   fs.mkdirSync(openCodeDir, { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(merged, null, 2) + "\n", "utf8");
+}
+
+// ─── registerAntigravityMcp ──────────────────────────────────────────────────
+
+/**
+ * Registers the llm-memory MCP server for Antigravity by merging into
+ * ~/.gemini/antigravity/mcp_config.json.
+ */
+function registerAntigravityMcp(receiverPath: string, antigravityDir: string): void {
+  const mcpScript = path.resolve(path.dirname(receiverPath), "../mcp/index.js");
+  const configPath = path.join(antigravityDir, "mcp_config.json");
+
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
+  } catch { /* file may not exist yet */ }
+
+  const existingServers = (typeof existing["mcpServers"] === "object" && existing["mcpServers"] !== null)
+    ? (existing["mcpServers"] as Record<string, unknown>)
+    : {};
+
+  const merged = {
+    ...existing,
+    mcpServers: {
+      ...existingServers,
+      "llm-memory": {
+        command: process.execPath,
+        args: [mcpScript],
+        env: { LLM_MEMORY_DB_PATH: process.env["LLM_MEMORY_DB_PATH"] ?? "" },
+      },
+    },
+  };
+
+  fs.mkdirSync(antigravityDir, { recursive: true });
   fs.writeFileSync(configPath, JSON.stringify(merged, null, 2) + "\n", "utf8");
 }
 
@@ -307,7 +343,7 @@ async function runSetup(): Promise<void> {
   const detected = detectInstalledTools(pathDirs);
 
   if (detected.length === 0) {
-    console.log("No supported tools found in PATH (claude, codex, gemini, opencode).");
+    console.log("No supported tools found in PATH (claude, codex, gemini, opencode, antigravity).");
     console.log("Install a tool first, then run llm-memory setup again.");
     return;
   }
@@ -353,6 +389,8 @@ async function runSetup(): Promise<void> {
     } else if (tool === "opencode") {
       writeOpenCodeHooks(path.join(homedir(), ".opencode"));
       registerOpenCodeMcp(receiverPath, path.join(homedir(), ".opencode"));
+    } else if (tool === "antigravity") {
+      registerAntigravityMcp(receiverPath, path.join(homedir(), ".gemini", "antigravity"));
     }
     // Create wrapper symlink named after the binary (e.g. "claude", not "claude-code")
     createWrapperSymlink(TOOL_BINARY[tool], wrapperPath, llmBin);

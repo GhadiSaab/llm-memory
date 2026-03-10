@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import type { Message, UUID } from "../types/index.js";
+import type { Message, UUID, ToolName } from "../types/index.js";
 import {
   getProjectById,
   getProjectByPathHash,
@@ -12,6 +12,7 @@ import {
   closeSession,
   writeDigest,
   insertMessage,
+  batchInsertMessages,
   batchInsertEvents,
   upsertMemoryDoc,
   updateSessionGoalAndKeywords,
@@ -22,6 +23,7 @@ import {
 import { classifyToolEvent } from "../layer1/events.js";
 import { processSession } from "../layer1/combiner.js";
 import { generateDigest } from "../layer2/digest.js";
+import { summarizeLayer1 } from "../layer2/summarize.js";
 import { mergeIntoProjectMemory, deserializeMemory } from "../layer3/memory.js";
 import { embedText, storeEmbedding, searchSimilar } from "../db/embedding.js";
 import type { ExtractedEvent } from "../types/index.js";
@@ -90,6 +92,7 @@ const ListSessionsSchema = z.object({
 const EndSessionSchema = z.object({
   session_id: z.string().min(1),
   project_id: z.string().min(1),
+  tool: z.enum(["claude-code", "codex", "gemini", "opencode", "antigravity"]).optional(),
   outcome: z.enum(["completed", "interrupted", "crashed"]),
   exit_code: z.number().int().nullable().optional(),
 });
@@ -253,19 +256,30 @@ export async function handleEndSession(input: unknown) {
   const parsed = EndSessionSchema.safeParse(input);
   if (!parsed.success) return err(parsed.error.message, "INVALID_INPUT");
 
-  const { session_id, project_id, outcome, exit_code } = parsed.data;
+  const { session_id, project_id, tool, outcome, exit_code } = parsed.data;
 
   try {
     // 0. Ensure session exists in DB — create it if the shell wrapper never called session_start
     const project = getProjectById(project_id as UUID);
     if (!project) return err("Project not found", "NOT_FOUND");
-    ensureSession({ id: session_id, project_id: project_id as UUID, tool: "claude-code" });
+    ensureSession({
+      id: session_id,
+      project_id: project_id as UUID,
+      tool: (tool ?? "claude-code") as ToolName,
+    });
 
     // 1. Drain buffers
     const messages = messageBuffers.get(session_id) ?? [];
     const events = eventBuffers.get(session_id) ?? [];
 
-    // 2. Flush events to DB
+    // 2. Flush messages and events to DB
+    if (messages.length > 0) {
+      try {
+        batchInsertMessages(messages);
+      } catch (e) {
+        console.error("[llm-memory] message flush failed:", e);
+      }
+    }
     if (events.length > 0) {
       try {
         batchInsertEvents(events);
@@ -277,8 +291,11 @@ export async function handleEndSession(input: unknown) {
     // 3. Layer 1
     // Events in the buffer are already classified ExtractedEvents — pass them directly
     // rather than re-routing through classifyToolEvent (which would return null for event type names).
-    const layer1 = processSession(messages, []);
-    layer1.events = events;
+    const layer1Raw = processSession(messages, []);
+    layer1Raw.events = events;
+
+    // 3.5. AI summarization (best-effort, requires ANTHROPIC_API_KEY)
+    const layer1 = await summarizeLayer1(layer1Raw);
 
     // 4. Layer 2 — digest
     const digest = generateDigest(layer1, outcome, exit_code ?? null);

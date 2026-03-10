@@ -4,18 +4,18 @@
 // and triggers session end on exit.
 
 import { spawn, execFileSync } from "node:child_process";
-import { accessSync, constants, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, writeFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { v4 as uuid } from "uuid";
-import type { SessionOutcome } from "../types/index.js";
+import type { SessionOutcome, ToolName } from "../types/index.js";
 import { detectTool } from "./detect.js";
 import { resolveProject } from "./project.js";
 import { handleEndSession, seedBuffers, getMessageBuffer, getEventBuffer } from "../mcp/handlers.js";
 import { loadEmbedder } from "../db/embedding.js";
-import { getSessionById, deleteSession, db, getProjectById } from "../db/index.js";
+import { getSessionById, deleteSession, db, getProjectById, createSession } from "../db/index.js";
 import { classifyToolEvent } from "../layer1/events.js";
 import { readCodexSession } from "./codex.js";
 import { readClaudeSession } from "./claude.js";
@@ -50,6 +50,11 @@ export function findRealBinary(toolName: string, pathDirs: string[]): string {
     }
   }
   throw new Error(`[llm-memory] Cannot find real '${toolName}' binary in PATH (excluding ${LLM_MEMORY_BIN})`);
+}
+
+export function normalizeToolName(tool: string): ToolName {
+  if (tool === "claude") return "claude-code";
+  return tool as ToolName;
 }
 
 // ─── signalSessionEnd ─────────────────────────────────────────────────────────
@@ -117,7 +122,13 @@ async function signalSessionEnd(
   // directly in the wrapper for all tools, always ensure embedder is loaded.
   try { await loadEmbedder(); } catch { /* best-effort */ }
 
-  await handleEndSession({ session_id: sessionId, project_id: projectId, outcome, exit_code: exitCode });
+  await handleEndSession({
+    session_id: sessionId,
+    project_id: projectId,
+    tool: normalizeToolName(tool),
+    outcome,
+    exit_code: exitCode,
+  });
 }
 
 // ─── injectCodexContext ───────────────────────────────────────────────────────
@@ -153,6 +164,23 @@ export function injectCodexContext(cwd: string, projectId: string): void {
   writeFileSync(agentsPath, injected, "utf8");
 }
 
+export function injectAntigravityContext(cwd: string, projectId: string): void {
+  const project = getProjectById(projectId as UUID);
+  if (!project?.memory_doc) return;
+
+  const rulesDir = join(cwd, ".agent", "rules");
+  const rulesPath = join(rulesDir, "llm-memory.md");
+  mkdirSync(rulesDir, { recursive: true });
+
+  const content =
+    "# llm-memory\n\n" +
+    "Project memory from previous sessions. Treat this as background context.\n\n" +
+    project.memory_doc.trim() +
+    "\n";
+
+  writeFileSync(rulesPath, content, "utf8");
+}
+
 // ─── Non-interactive subcommands (bypass wrapper entirely) ───────────────────
 
 // These subcommands don't start an interactive session — pass them straight
@@ -165,10 +193,12 @@ const BYPASS_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
                       "serve", "web", "models", "stats", "export", "import", "github", "pr",
                       "session", "db", "agent"]),
   gemini:    new Set(["update", "login", "logout", "completion"]),
+  antigravity: new Set(["serve-web", "tunnel"]),
 };
 
 function shouldBypass(tool: string, args: string[]): boolean {
   const sub = args[0];
+  if (tool === "antigravity" && sub !== "chat") return true;
   if (!sub || sub.startsWith("-")) return false;
   return BYPASS_SUBCOMMANDS[tool]?.has(sub) ?? false;
 }
@@ -199,9 +229,18 @@ export async function main(): Promise<void> {
   process.env["LLM_MEMORY_SESSION_ID"] = sessionId;
   process.env["LLM_MEMORY_PROJECT_ID"] = projectId;
 
+  createSession({
+    id: sessionId as UUID,
+    project_id: projectId as UUID,
+    tool: normalizeToolName(tool),
+  });
+
   // Inject project memory into AGENTS.md for Codex and OpenCode (both read it at startup)
   if ((tool as string) === "codex" || (tool as string) === "opencode") {
     try { injectCodexContext(cwd, projectId); } catch { /* best-effort */ }
+  }
+  if ((tool as string) === "antigravity") {
+    try { injectAntigravityContext(cwd, projectId); } catch { /* best-effort */ }
   }
 
   // Spawn MCP server as a side-car child process for tools that support MCP.

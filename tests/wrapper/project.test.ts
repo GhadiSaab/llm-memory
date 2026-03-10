@@ -76,6 +76,23 @@ describe("resolveProject — git root fallback (no remote)", () => {
   });
 });
 
+describe("resolveProject — git root is grandparent (home-dir git repo)", () => {
+  it("uses cwd when git root is more than one level above cwd", async () => {
+    // e.g. /home/ghadi is a git repo, cwd is /home/ghadi/perso/Project12
+    setupGit(null, "/home/ghadi");
+    const result = await resolveProject("/home/ghadi/perso/Project12");
+    expect(result.path).toBe("/home/ghadi/perso/Project12");
+    expect(result.name).toBe("Project12");
+  });
+
+  it("uses git root when cwd is a direct subdir of git root", async () => {
+    // e.g. cwd is /home/ghadi/perso/llm-memory, git root is /home/ghadi/perso/llm-memory
+    setupGit("git@github.com:user/repo.git", "/home/ghadi/perso/llm-memory");
+    const result = await resolveProject("/home/ghadi/perso/llm-memory/src");
+    expect(result.path).toBe("/home/ghadi/perso/llm-memory");
+  });
+});
+
 describe("resolveProject — cwd fallback (no git at all)", () => {
   it("falls back to cwd when not in a git repo", async () => {
     mockExec.mockImplementation(() => { throw new Error("not a git repo"); });

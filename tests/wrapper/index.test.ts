@@ -1,5 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resolveOutcome, findRealBinary } from "../../src/wrapper/index.js";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { resolveOutcome, findRealBinary, normalizeToolName, injectAntigravityContext } from "../../src/wrapper/index.js";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { clearDb } from "../db/helpers.js";
+import { createProject, upsertMemoryDoc } from "../../src/db/index.js";
 
 // ─── resolveOutcome ───────────────────────────────────────────────────────────
 
@@ -40,6 +45,7 @@ const mockAccess = vi.mocked(accessSync);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearDb();
 });
 
 describe("findRealBinary", () => {
@@ -78,5 +84,43 @@ describe("findRealBinary", () => {
     });
     const result = findRealBinary("claude", ["/a", "/b", "/c"]);
     expect(result).toBe("/c/claude");
+  });
+});
+
+describe("normalizeToolName", () => {
+  it("maps the claude binary name to the internal tool id", () => {
+    expect(normalizeToolName("claude")).toBe("claude-code");
+  });
+
+  it("leaves antigravity unchanged", () => {
+    expect(normalizeToolName("antigravity")).toBe("antigravity");
+  });
+});
+
+describe("injectAntigravityContext", () => {
+  let cwd: string;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "llm-memory-antigravity-"));
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("writes project memory into .agent/rules/llm-memory.md", () => {
+    const project = createProject({
+      name: "proj",
+      path: cwd,
+      git_remote: null,
+      path_hash: "hash-antigravity-test",
+    });
+    upsertMemoryDoc(project.id, "# Project Memory\n\n## Architecture\n- Uses SQLite");
+
+    injectAntigravityContext(cwd, project.id);
+
+    const content = readFileSync(join(cwd, ".agent", "rules", "llm-memory.md"), "utf8");
+    expect(content).toContain("# llm-memory");
+    expect(content).toContain("Uses SQLite");
   });
 });

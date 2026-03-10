@@ -54,14 +54,16 @@ export function generateDigest(
     let tokens = estimateTokens(makeDraft(goalStr, files, decisions, errors, keywords));
 
     if (tokens > BUDGET) {
-      decisions = decisions.slice(0, 5);
-      errors = errors.slice(0, 3);
+      decisions = decisions.slice(0, 5).map(d => d.length > 120 ? d.slice(0, 120) + "…" : d);
+      errors = errors.slice(0, 3).map(e => e.length > 120 ? e.slice(0, 120) + "…" : e);
       files = files.slice(0, 10);
       keywords = keywords.slice(0, 10);
       tokens = estimateTokens(makeDraft(goalStr, files, decisions, errors, keywords));
 
       if (tokens > BUDGET) {
-        goalStr = goalStr.length > 150 ? goalStr.slice(0, 150) : goalStr;
+        goalStr = goalStr.length > 150 ? goalStr.slice(0, 149) + "…" : goalStr;
+        decisions = decisions.slice(0, 3).map(d => d.length > 80 ? d.slice(0, 80) + "…" : d);
+        errors = errors.slice(0, 2).map(e => e.length > 80 ? e.slice(0, 80) + "…" : e);
         tokens = estimateTokens(makeDraft(goalStr, files, decisions, errors, keywords));
       }
     }

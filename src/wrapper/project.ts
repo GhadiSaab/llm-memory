@@ -40,8 +40,20 @@ export async function resolveProject(cwd: string): Promise<ResolvedProject> {
   // 2. Try git root for the canonical path
   const gitRoot = tryExecSync("git rev-parse --show-toplevel", cwd);
 
-  // 3. Resolved path: git root → cwd
-  const resolvedPath = gitRoot ?? cwd;
+  // 3. Resolved path: use git root only if it IS the project directory.
+  //    If git root is a grandparent (e.g. home dir is a bare git repo),
+  //    fall back to cwd so that ~/perso/Project12 doesn't get lumped into ~.
+  let resolvedPath: string;
+  if (!gitRoot || gitRoot === cwd) {
+    resolvedPath = gitRoot ?? cwd;
+  } else {
+    // gitRoot is a parent of cwd. Only trust it if cwd is exactly one level
+    // inside (i.e. cwd is a direct subdir of the project root, not a nested
+    // subproject buried under a home-dir git repo).
+    const parent = gitRoot.endsWith("/") ? gitRoot : gitRoot + "/";
+    const rel = cwd.startsWith(parent) ? cwd.slice(parent.length) : null;
+    resolvedPath = rel !== null && !rel.includes("/") ? gitRoot : cwd;
+  }
   const name = basename(resolvedPath);
   const pathHash = createHash("sha256").update(resolvedPath).digest("hex");
 

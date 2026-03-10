@@ -18,6 +18,7 @@ import {
   upsertMemoryDoc,
   getProjectById,
   getDigestBySession,
+  getSessionById,
   setConfigValue,
 } from "../../src/db/index.js";
 
@@ -273,5 +274,28 @@ describe("handleEndSession", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await handleEndSession({} as any);
     expect(result).toHaveProperty("error");
+  });
+
+  it("creates a missing session with the provided tool name", async () => {
+    const project = seedProject();
+    const sessionId = "11111111-1111-4111-8111-111111111111";
+
+    await handleStoreMessage({
+      session_id: sessionId,
+      role: "user",
+      content: "review the current workspace state",
+      index: 0,
+    });
+
+    const result = r(await handleEndSession({
+      session_id: sessionId,
+      project_id: project.id,
+      tool: "antigravity",
+      outcome: "completed",
+      exit_code: 0,
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(getSessionById(sessionId as any)?.tool).toBe("antigravity");
   });
 });

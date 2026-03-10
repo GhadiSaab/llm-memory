@@ -16,15 +16,18 @@ import {
 
 describe("detectInstalledTools", () => {
   it("returns only tools whose executables exist in PATH dirs", () => {
-    // Provide a mock PATH dir where only 'claude' (claude-code) and 'gemini' exist.
+    // Provide a mock PATH dir where only 'claude' (claude-code), 'gemini',
+    // and 'antigravity' exist.
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "detect-"));
     fs.writeFileSync(path.join(tmpDir, "claude"), "", { mode: 0o755 });
     fs.writeFileSync(path.join(tmpDir, "gemini"), "", { mode: 0o755 });
+    fs.writeFileSync(path.join(tmpDir, "antigravity"), "", { mode: 0o755 });
     // 'codex' and 'opencode' are absent.
 
     const found = detectInstalledTools([tmpDir]);
     expect(found).toContain("claude-code");
     expect(found).toContain("gemini");
+    expect(found).toContain("antigravity");
     expect(found).not.toContain("codex");
     expect(found).not.toContain("opencode");
 
